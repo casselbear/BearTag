@@ -353,26 +353,56 @@ export default function App() {
 
           {/* Right Column: Results Area */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between pb-2">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                <Tag className="w-4 h-4" />
-                Results {items.length > 0 && `(${items.length})`}
-              </h2>
+            <div className="flex flex-col space-y-4">
+              <div className="flex items-center justify-between pb-2">
+                <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Results {items.length > 0 && `(${items.length})`}
+                </h2>
+                {items.length > 0 && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={() => {
+                      items.forEach(item => {
+                        if (item.type === 'file') URL.revokeObjectURL(item.source);
+                      });
+                      setItems([]);
+                    }}
+                    className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-red-400 transition-colors px-4 py-2 bg-gray-900/50 rounded-lg border border-gray-800"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear All
+                  </motion.button>
+                )}
+              </div>
+
+              {/* Progress Bar */}
               {items.length > 0 && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onClick={() => {
-                    items.forEach(item => {
-                      if (item.type === 'file') URL.revokeObjectURL(item.source);
-                    });
-                    setItems([]);
-                  }}
-                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-red-400 transition-colors px-4 py-2 bg-gray-900/50 rounded-lg border border-gray-800"
-                >
-                  <X className="w-4 h-4" />
-                  Clear All
-                </motion.button>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">
+                      Processing Batch
+                    </p>
+                    <p className="text-[10px] font-mono text-brand">
+                      {items.filter(i => i.status === 'done' || i.status === 'error').length} / {items.length} Complete
+                    </p>
+                  </div>
+                  <div className="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ 
+                        width: `${(items.filter(i => i.status === 'done' || i.status === 'error').length / items.length) * 100}%` 
+                      }}
+                      className={cn(
+                        "h-full transition-all duration-500",
+                        items.every(i => i.status === 'done' || i.status === 'error') 
+                          ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
+                          : "bg-brand shadow-[0_0_10px_rgba(0,169,206,0.5)]"
+                      )}
+                    />
+                  </div>
+                </div>
               )}
             </div>
 
