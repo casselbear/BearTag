@@ -30,11 +30,9 @@ function cn(...inputs: ClassValue[]) {
 // Lazy initialization to prevent top-level crashes if API key is missing
 let aiClient: GoogleGenAI | null = null;
 function getAI() {
-  const key = typeof process !== 'undefined' && process.env.GEMINI_API_KEY 
-    ? process.env.GEMINI_API_KEY 
-    : undefined;
+  const key = process.env.GEMINI_API_KEY;
     
-  if (!key || key === "undefined") {
+  if (!key || key === "undefined" || key === "null" || key === "") {
     return null;
   }
   if (!aiClient) {
@@ -229,16 +227,17 @@ export default function App() {
       <div className="relative max-w-[1600px] mx-auto space-y-12">
         {/* Top Header Section */}
         <header className="space-y-8">
-          {!process.env.GEMINI_API_KEY && (
+          {(!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "undefined") && (
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm max-w-xl"
+              className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 text-sm max-w-2xl"
             >
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <p>
-                <strong>Configuration Required:</strong> GEMINI_API_KEY is not set.
-              </p>
+              <div className="space-y-1">
+                <p className="font-bold">Gemini API Key Missing</p>
+                <p className="opacity-80">Please add your `GEMINI_API_KEY` in the App Settings to enable AI features. If you just added it, you may need to wait a moment for the build to refresh.</p>
+              </div>
             </motion.div>
           )}
 
