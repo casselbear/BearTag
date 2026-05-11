@@ -42,7 +42,8 @@ function getAI() {
 
 interface ImageItem {
   id: string;
-  source: string; // Base64 or ObjectURL
+  source: string; // Preview URL
+  file?: File;    // Original file object
   type: 'file' | 'url';
   name: string;
   status: 'idle' | 'processing' | 'done' | 'error';
@@ -58,70 +59,70 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const processImage = async (item: ImageItem) => {
-    if (item.status === 'processing') return;
+  const processImage = useCallback(async (item: ImageItem) => {
+    // Basic guards
+    if (item.status === 'processing' || item.status === 'done') return;
 
     const ai = getAI();
     if (!ai) {
       setItems(prev => prev.map(i => i.id === item.id ? { 
         ...i, 
         status: 'error', 
-        error: "GEMINI_API_KEY is missing. Please set it in your environment variables." 
+        error: "API Key missing. Please check your environment variables." 
       } : i));
       return;
     }
 
+    // Set to processing immediately
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' } : i));
 
     try {
-      // Need base64 for Gemini
       let base64 = "";
       let mimeType = "image/jpeg";
 
-      if (item.type === 'file') {
-        const response = await fetch(item.source);
-        const blob = await response.blob();
-        mimeType = blob.type;
-        base64 = await new Promise((resolve) => {
+      if (item.type === 'file' && item.file) {
+        mimeType = item.file.type || "image/jpeg";
+        base64 = await new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(blob);
+          reader.onload = () => {
+            const res = reader.result as string;
+            resolve(res.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(item.file!);
         });
       } else {
-        // For URLs, we try to fetch and convert to base64
-        // Note: This might fail due to CORS. If it does, we suggest downloading.
+        // For URLs
         try {
           const response = await fetch(item.source);
           const blob = await response.blob();
-          mimeType = blob.type;
-          base64 = await new Promise((resolve) => {
+          mimeType = blob.type || "image/jpeg";
+          base64 = await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onload = () => {
+              const res = reader.result as string;
+              resolve(res.split(',')[1]);
+            };
+            reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
         } catch (e) {
-          throw new Error("Unable to access image via URL (CORS). Please download and upload the file.");
+          throw new Error("CORS blocking URL access. Please upload the file directly.");
         }
       }
 
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              { text: "Write technical, accurate, and concise alt text for this image. Focus on providing accessibility for vision-impaired users. Do not include phrases like 'image of' or 'picture of'. Just describe the content and purpose." },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64
-                }
-              }
-            ]
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent([
+        "Write technical, accurate, and concise alt text for this image. Focus on providing accessibility. Do not include phrases like 'image of'. Just describe the content.",
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64
           }
-        ]
-      });
+        }
+      ]);
 
-      const altText = result.text || "No alt text generated.";
+      const altText = result.response.text();
 
       setItems(prev => prev.map(i => i.id === item.id ? { 
         ...i, 
@@ -136,7 +137,7 @@ export default function App() {
         error: error instanceof Error ? error.message : "Failed to process image" 
       } : i));
     }
-  };
+  }, []);
 
   const handleFiles = useCallback((files: FileList) => {
     const remaining = MAX_IMAGES - items.length;
@@ -145,7 +146,8 @@ export default function App() {
     const newFiles = Array.from(files).slice(0, remaining);
     const newItems: ImageItem[] = newFiles.map(file => ({
       id: Math.random().toString(36).substring(7),
-      source: URL.createObjectURL(file), // Using object URL for preview
+      source: URL.createObjectURL(file),
+      file: file,
       type: 'file',
       name: file.name,
       status: 'idle',
@@ -161,15 +163,15 @@ export default function App() {
       return;
     }
 
-    const newItem: ImageItem[] = [{
+    const newItem: ImageItem = {
       id: Math.random().toString(36).substring(7),
       source: urlInput.trim(),
       type: 'url',
       name: urlInput.split('/').pop() || "Image from URL",
       status: 'idle',
-    }];
+    };
 
-    setItems(prev => [...prev, ...newItem]);
+    setItems(prev => [...prev, newItem]);
     setUrlInput("");
   };
 
@@ -189,13 +191,13 @@ export default function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Auto-process idle items
+  // Sequential processing to avoid rate limiting
   useEffect(() => {
     const idleItem = items.find(i => i.status === 'idle');
     if (idleItem) {
       processImage(idleItem);
     }
-  }, [items]);
+  }, [items, processImage]);
 
   return (
     <div className="min-h-screen bg-black text-white p-6 md:p-12 lg:p-24 selection:bg-brand selection:text-white">
