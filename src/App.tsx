@@ -27,7 +27,18 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Lazy initialization to prevent top-level crashes if API key is missing
+let aiClient: GoogleGenAI | null = null;
+function getAI() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key || key === "undefined") {
+    return null;
+  }
+  if (!aiClient) {
+    aiClient = new GoogleGenAI(key);
+  }
+  return aiClient;
+}
 
 interface ImageItem {
   id: string;
@@ -49,6 +60,16 @@ export default function App() {
 
   const processImage = async (item: ImageItem) => {
     if (item.status === 'processing') return;
+
+    const ai = getAI();
+    if (!ai) {
+      setItems(prev => prev.map(i => i.id === item.id ? { 
+        ...i, 
+        status: 'error', 
+        error: "GEMINI_API_KEY is missing. Please set it in your environment variables." 
+      } : i));
+      return;
+    }
 
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' } : i));
 
@@ -84,7 +105,7 @@ export default function App() {
       }
 
       const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3-flash-preview",
         contents: [
           {
             parts: [
@@ -185,6 +206,19 @@ export default function App() {
       </div>
 
       <main className="relative max-w-4xl mx-auto space-y-12">
+        {!process.env.GEMINI_API_KEY && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p>
+              <strong>Configuration Required:</strong> GEMINI_API_KEY is not set. Add it to your provider's environment variables to enable AI processing.
+            </p>
+          </motion.div>
+        )}
+
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-4">
@@ -265,10 +299,13 @@ export default function App() {
               onChange={(e) => e.target.files && handleFiles(e.target.files)}
               disabled={items.length >= MAX_IMAGES}
             />
-            <div className="mt-8 pt-8 border-t border-gray-800 w-full flex items-center justify-center">
-              <p className="text-xs text-gray-600 uppercase tracking-widest font-semibold flex items-center gap-2">
-                <Hash className="w-3 h-3" />
+            <div className="mt-8 pt-8 border-t border-gray-800 w-full flex flex-col items-center justify-center gap-3">
+              <p className="text-xs text-gray-400 uppercase tracking-widest font-bold flex items-center gap-2">
+                <Hash className="w-3 h-3 text-brand" />
                 {items.length} / {MAX_IMAGES} IMAGES
+              </p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-[0.2em] font-medium">
+                Supported: PNG, JPEG, WEBP, HEIC, HEIF
               </p>
             </div>
           </motion.div>
