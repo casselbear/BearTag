@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand: #00A9CE;
+}
+
+@layer base {
+  body {
+    @apply bg-black text-gray-100 font-sans selection:bg-brand selection:text-white;
+  }
+}
+
+.glass-card {
+  @apply bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-2xl;
+}
+
+.input-glow {
+  @apply focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all;
+}
